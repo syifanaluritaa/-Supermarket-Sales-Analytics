@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html lang="id" class="light">
+<!DOCTYPE html>
+<html lang="id" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supermarket Sales Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        enterprise: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e', // Warna Utama Emerald
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                            950: '#052e16',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #166534; /* Mengikuti warna tema hijau */
+            border-radius: 4px;
+        }
+        .light ::-webkit-scrollbar-thumb {
+            background: #bbf7d0; /* Mengikuti warna tema hijau */
+            border-radius: 4px;
+        }
+        /* Virtual Table optimization */
+        .virtual-table-container {
+            contain: strict;
+            overflow-y: auto;
+        }
+        /* Animations */
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .animate-pulse-soft {
+            animation: pulse-soft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+
+    <!-- TOP REALTIME MONITORING BAR -->
+    <div class="bg-slate-900 text-white text-xs px-4 py-2 flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 shrink-0">
+        <div class="flex items-center gap-3">
+            <span class="flex items-center gap-1.5">
+                <span class="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="font-semibold text-emerald-400">REALTIME DATA ENGINE AKTIF</span>
+            </span>
+            <span class="text-slate-400">|</span>
+            <span class="flex items-center gap-1">
+                <i class="fa-solid fa-cloud-arrow-down text-enterprise-400"></i>
+                <span>Sumber: <strong id="current-source-label">Data Superstore Excel Opensource</strong></span>
+            </span>
+        </div>
+        <div class="flex items-center gap-4">
+            <div id="connection-status-container" class="flex items-center gap-1.5 text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/30">
+                <i class="fa-solid fa-circle-check text-[10px]"></i>
+                <span id="connection-status-text">Terhubung</span>
+            </div>
+            <div class="text-slate-400">
+                Sisa Auto-Refresh: <span id="countdown-timer" class="font-mono text-white font-bold">30s</span>
+            </div>
+            <div class="text-slate-400">
+                Waktu saat ini: 
+                <span id="last-update-timestamp" class="font-mono text-white"></span>
+            </div>
+
+            <script>
+            function updateTimestamp() {
+                const now = new Date();
+
+                const timeString = now.toLocaleTimeString('id-ID', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+
+                document.getElementById('last-update-timestamp').textContent = timeString;
+            }
+            updateTimestamp();
+            setInterval(updateTimestamp, 1000);
+            </script>
+        </div>
+    </div>
+
+    <!-- MAIN HEADER -->
+    <header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 shadow-sm z-10 transition-colors duration-200">
+        <div class="flex items-center gap-3">
+            <div class="bg-enterprise-600 text-white p-2.5 rounded-xl shadow-md shadow-enterprise-600/20">
+                <i class="fa-solid fa-chart-line text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Supermarket Sales Analytics</h1>
+                    <span class="bg-enterprise-100 dark:bg-enterprise-950 text-enterprise-700 dark:text-enterprise-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider"></span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Supermarket Analytics Center</span>
+                </p>
+            </div>
+        </div>
+        
+        <!-- HEADER CONTROLS -->
+        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <!-- Sheets Quick Selector -->
+            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 w-full sm:w-auto">
+                <span class="text-[11px] font-bold px-2 text-slate-500 dark:text-slate-400 uppercase">Sheet:</span>
+                <select id="sheet-selector" class="bg-transparent text-xs font-semibold focus:outline-none pr-6 pl-1 py-1 text-slate-800 dark:text-slate-200 cursor-pointer w-full sm:w-auto">
+                    <option value="Orders" selected>Orders (Pesanan)</option>
+                    <option value="People">People (Manajer Regional)</option>
+                    <option value="Returns">Returns (Pengembalian)</option>
+                </select>
+            </div>
+
+            <!-- Auto Refresh Select -->
+            <div class="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                <i class="fa-solid fa-arrows-spin text-[11px] text-slate-400 pl-2"></i>
+                <select id="refresh-interval-selector" class="bg-transparent text-xs font-semibold focus:outline-none pr-6 pl-1 py-1 text-slate-800 dark:text-slate-200 cursor-pointer">
+                    <option value="10">Interval: 10s</option>
+                    <option value="30" selected>Interval: 30s</option>
+                    <option value="60">Interval: 60s</option>
+                    <option value="300">Interval: 5 Menit</option>
+                </select>
+            </div>
+
+            <button id="btn-force-refresh" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 p-2 rounded-lg border border-slate-200 dark:border-slate-700 transition" title="Refresh Sekarang">
+                <i class="fa-solid fa-rotate"></i>
+            </button>
+            <button id="btn-export-png" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-image text-emerald-500"></i> PNG
+            </button>
+            <button id="btn-export-pdf" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-file-pdf text-red-500"></i> PDF
+            </button>
+            <button id="btn-display-mode" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition shadow-sm shadow-amber-500/10">
+                <i class="fa-solid fa-display"></i> DISPLAY MODE
+            </button>
+        </div>
+    </header>
+
+    <!-- WRAPPER LAYOUT (SIDEBAR + MAIN CONTENT) -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- SIDEBAR -->
+        <aside class="w-full lg:w-72 bg-white dark:bg-slate-900 border-r lg:border-b-0 border-b border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:overflow-y-auto transition-colors duration-200">
+            <!-- DATA CONNECTOR HUB -->
+            <div class="hidden p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+                <div class="flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-link text-enterprise-500 text-xs"></i>
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Koneksi Google Sheets</h2>
+                </div>
+                <div class="space-y-2">
+                    <div class="relative">
+                        <input type="text" id="sheets-url-input" placeholder="Masukkan URL Google Sheets / JSON..." class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-3 pr-8 py-1.5 text-xs focus:ring-2 focus:ring-enterprise-500 focus:outline-none dark:text-slate-100" />
+                        <button id="btn-connect-sheets" class="absolute right-1 top-1 bottom-1 bg-enterprise-600 hover:bg-enterprise-700 text-white px-2.5 rounded text-[10px] font-bold transition">
+                            Konek
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                        Masukkan tautan Google Sheets yang telah dipublikasikan di web atau URL JSON feed Anda.
+                    </p>
+                </div>
+            </div>
+
+            <!-- PERFORMANCE INDICATION -->
+            <div id="perf-mode-card" class="m-4 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl">
+                <div class="flex items-start gap-2.5">
+                    <div class="p-1.5 bg-emerald-500 text-white rounded-lg shrink-0 mt-0.5 text-[10px]">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-emerald-800 dark:text-emerald-400">SUPERMARKET ANALYTICS MODE</h4>
+                        <p class="text-[10px] text-emerald-600 dark:text-emerald-500 mt-1 leading-normal">
+                            Real-time sales visualization, interactive data mapping, dan optimized processing aktif otomatis untuk memastikan analisis bisnis yang cepat dan responsif.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NAVIGATION MENU -->
+            <div class="p-4 flex-1">
+                <div class="flex items-center gap-2 mb-3">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Navigasi Utama</h2>
+                </div>
+                <nav class="space-y-1.5" id="sidebar-nav">
+                    <button data-target="section-summary" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-enterprise-50 dark:bg-enterprise-950/50 text-enterprise-700 dark:text-enterprise-300 border border-enterprise-100/50 dark:border-enterprise-900/30 transition">
+                        <span class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-house-chimney text-sm"></i>
+                            Ringkasan & KPI Utama
+                        </span>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                    <button data-target="section-visualizations" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <span class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-chart-column text-sm"></i>
+                            Visualisasi Analitik
+                        </span>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                    <button data-target="section-datatable" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <span class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-table-list text-sm"></i>
+                            Virtual Table Explorer
+                        </span>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                    <button data-target="section-insights" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <span class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-brain text-sm"></i>
+                            Realtime Report
+                        </span>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                    <button data-target="section-about" class="nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <span class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-circle-info text-sm"></i>
+                            Tentang Aplikasi
+                        </span>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                </nav>
+            </div>
+
+            <!-- GLOBAL THEMING TOGGLE & APP BRAND -->
+            <div class="p-4 border-t border-slate-200 dark:border-slate-800 shrink-0 mt-auto bg-slate-50/50 dark:bg-slate-950/20">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-xs font-bold text-slate-500 dark:text-slate-400">Pilih Mode Tampilan</span>
+                    <button id="theme-toggle" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none bg-slate-200 dark:bg-enterprise-600">
+                        <span id="theme-toggle-dot" class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out translate-x-0 dark:translate-x-5 flex items-center justify-center">
+                            <i id="theme-toggle-icon" class="fa-solid fa-sun text-[10px] text-amber-500"></i>
+                        </span>
+                    </button>
+                </div>
+                <div class="text-[10px] text-slate-400 dark:text-slate-500 leading-normal">
+                    <span>© 2026 Syifa Nalurita Azahra</span><br>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN VIEWPORT -->
+        <main class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+            
+            <!-- GLOBAL INTERACTIVE FILTER PANEL -->
+            <section class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 shrink-0 transition-colors duration-200">
+                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                        <div class="p-1.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400">
+                            <i class="fa-solid fa-filter text-xs"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Filter Interaktif</h3>
+                        </div>
+                    </div>
+                    
+                    <!-- Form Filter -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1 xl:max-w-4xl">
+                        <!-- Filter Dimensi Utama -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Dimensi Utama</label>
+                            <select id="filter-dimension" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-enterprise-500 cursor-pointer">
+                                <option value="ALL">Tampilkan Semua Kategori</option>
+                            </select>
+                        </div>
+                        <!-- Filter Segment / Lokasi -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sub-Dimensi / Lokasi</label>
+                            <select id="filter-region" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-enterprise-500 cursor-pointer">
+                                <option value="ALL">Tampilkan Semua Regional</option>
+                            </select>
+                        </div>
+                        <!-- Filter Rentang Nilai -->
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Filter Pencarian Data</label>
+                            <div class="relative">
+                                <input type="text" id="filter-search" placeholder="Cari pesanan, produk..." class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-enterprise-500" />
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-[10px] text-slate-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KONTEN UTAMA SCROLLER -->
+            <div class="p-6 space-y-8 flex-1">
+
+                <!-- SECTION: RINGKASAN & KPI UTAMA -->
+                <section id="section-summary" class="section-pane space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">Ringkasan Eksekutif & KPI Utama</h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">Metrik kinerja utama dihitung secara langsung dari data mentah.</p>
+                        </div>
+                        <div id="filter-indicator" class="hidden bg-enterprise-50 dark:bg-enterprise-950 border border-enterprise-200 dark:border-enterprise-900 text-enterprise-700 dark:text-enterprise-300 text-xs px-3 py-1 rounded-lg font-semibold flex items-center gap-1.5">
+                            <span class="h-1.5 w-1.5 rounded-full bg-enterprise-500 animate-pulse"></span>
+                            Filter Aktif
+                        </div>
+                    </div>
+
+                    <!-- GRID KARTU STATISTIK -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- KPI 1: Jumlah Data -->
+                        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-lg hover:border-enterprise-300 dark:hover:border-enterprise-800 transition duration-200 group relative overflow-hidden">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Volume Data</p>
+                                    <h3 id="kpi-total-rows" class="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">10.194</h3>
+                                </div>
+                                <div class="p-3 bg-enterprise-50 dark:bg-enterprise-950 text-enterprise-600 dark:text-enterprise-400 rounded-xl group-hover:bg-enterprise-500 group-hover:text-white transition duration-200">
+                                    <i class="fa-solid fa-database text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-4 flex items-center gap-1">
+                                <i class="fa-solid fa-server"></i>
+                                <span>Menampilkan seluruh baris terpilih</span>
+                            </div>
+                        </div>
+
+                        <!-- KPI 2: Total Nilai Kategori / Kolom -->
+                        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-lg hover:border-enterprise-300 dark:hover:border-enterprise-800 transition duration-200 group relative overflow-hidden">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Transaksi (Sales)</p>
+                                    <h3 id="kpi-total-value" class="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">$2.30M</h3>
+                                </div>
+                                <div class="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition duration-200">
+                                    <i class="fa-solid fa-sack-dollar text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-4 flex items-center gap-1">
+                                <i class="fa-solid fa-chart-line text-emerald-500"></i>
+                                <span>Akumulasi angka moneter data</span>
+                            </div>
+                        </div>
+
+                        <!-- KPI 3: Nilai Rata-rata -->
+                        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-lg hover:border-enterprise-300 dark:hover:border-enterprise-800 transition duration-200 group relative overflow-hidden">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Nilai Rata-rata (Avg)</p>
+                                    <h3 id="kpi-avg-value" class="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 font-mono">$229.85</h3>
+                                </div>
+                                <div class="p-3 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-white transition duration-200">
+                                    <i class="fa-solid fa-calculator text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-4 flex items-center gap-1">
+                                <i class="fa-solid fa-circle-nodes"></i>
+                                <span>Distribusi tengah nilai kolom utama</span>
+                            </div>
+                        </div>
+
+                        <!-- KPI 4: Total Keuntungan (Profit) / Kategori -->
+                        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-lg hover:border-enterprise-300 dark:hover:border-enterprise-800 transition duration-200 group relative overflow-hidden">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Keuntungan</p>
+                                    <h3 id="kpi-total-profit" class="text-3xl font-extrabold text-emerald-600 mt-2 font-mono">$286.3K</h3>
+                                </div>
+                                <div class="p-3 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-xl group-hover:bg-rose-500 group-hover:text-white transition duration-200">
+                                    <i class="fa-solid fa-money-bill-trend-up text-lg"></i>
+                                </div>
+                            </div>
+                            <div class="text-[10px] text-slate-400 mt-4 flex items-center gap-1">
+                                <i class="fa-solid fa-percent text-emerald-500"></i>
+                                <span>Rasio profit bersih perusahaan</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DATA PROFILE SUMMARY MIN / MAX -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+                            <div class="p-2.5 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg">
+                                <i class="fa-solid fa-up-long"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">Nilai Tertinggi (Max)</p>
+                                <p id="kpi-max-value" class="text-lg font-extrabold text-slate-900 dark:text-white font-mono">$22,638.48</p>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+                            <div class="p-2.5 bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400 rounded-lg">
+                                <i class="fa-solid fa-down-long"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">Nilai Terendah (Min)</p>
+                                <p id="kpi-min-value" class="text-lg font-extrabold text-slate-900 dark:text-white font-mono">-$6,599.98</p>
+                            </div>
+                        </div>
+                        <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+                            <div class="p-2.5 bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 rounded-lg">
+                                <i class="fa-solid fa-folder-tree"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">Total Unik Kategori / Region</p>
+                                <p id="kpi-unique-categories" class="text-lg font-extrabold text-slate-900 dark:text-white font-mono">3 Kategori / 4 Regional</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: VISUALISASI ANALITIK -->
+                <section id="section-visualizations" class="section-pane space-y-6 hidden">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">Smart Retail Visualization Engine</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Visualisasi data interaktif untuk analisis supermarket. Sistem secara otomatis menyesuaikan tampilan grafik agar insight penjualan lebih mudah dipahami.</p>
+                    </div>
+
+                    <!-- MAIN CHART CONTAINERS -->
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <!-- Chart 1: Trend Analisis (Line / Area) -->
+                        <div class="lg:col-span-8 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col h-[400px]">
+                            <div class="flex justify-between items-center mb-4 shrink-0">
+                                <div>
+                                    <h3 class="text-sm font-bold text-slate-900 dark:text-white">Analisis Tren & Proyeksi Temporal</h3>
+                                    <p class="text-[10px] text-slate-400">Grafik Garis Area Interaktif (Berdasarkan Dimensi Tanggal Terpilih)</p>
+                                </div>
+                                <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                    <button class="px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-700 shadow-sm" id="btn-chart-trend-sales">Sales</button>
+                                    <button class="px-2 py-0.5 rounded text-[10px] font-bold text-slate-400" id="btn-chart-trend-profit">Profit</button>
+                                </div>
+                            </div>
+                            <div id="chart-temporal" class="flex-1 w-full h-full min-h-[250px]"></div>
+                        </div>
+
+                        <!-- Chart 2: Komposisi Data (Pie / Donut) -->
+                        <div class="lg:col-span-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col h-[400px]">
+                            <div class="mb-4 shrink-0">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Porsi Kontribusi Dimensi Utama</h3>
+                                <p class="text-[10px] text-slate-400">Pie / Donut Chart Distribusi</p>
+                            </div>
+                            <div id="chart-donut" class="flex-1 w-full h-full min-h-[250px]"></div>
+                        </div>
+
+                        <!-- Chart 3: Distribusi Kategori (Bar Chart) -->
+                        <div class="lg:col-span-6 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col h-[380px]">
+                            <div class="mb-4 shrink-0">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Kinerja Sub-Kategori Unggulan</h3>
+                                <p class="text-[10px] text-slate-400">Bar Chart Horizontal Terurut</p>
+                            </div>
+                            <div id="chart-bar" class="flex-1 w-full h-full"></div>
+                        </div>
+
+                        <!-- Chart 4: Segment / Region Distribution -->
+                        <div class="lg:col-span-6 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col h-[380px]">
+                            <div class="mb-4 shrink-0">
+                                <h3 class="text-sm font-bold text-slate-900 dark:text-white">Relasi & Sebaran Wilayah / Segmen</h3>
+                                <p class="text-[10px] text-slate-400">Radar Chart Analisis Multi-Dimensi</p>
+                            </div>
+                            <div id="chart-radar" class="flex-1 w-full h-full"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: VIRTUAL TABLE EXPLORER -->
+                <section id="section-datatable" class="section-pane space-y-6 hidden">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">Virtual Table Explorer (Big Data Rendering)</h2>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-lg text-slate-500 font-mono">
+                                Baris Terpilih: <strong id="visible-table-rows" class="text-enterprise-600 dark:text-enterprise-400">0</strong> / <span id="total-table-rows">0</span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- SEARCH AND QUICK ACTIONS -->
+                    <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div class="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 w-full sm:max-w-md">
+                            <i class="fa-solid fa-magnifying-glass text-slate-400 text-xs"></i>
+                            <input type="text" id="table-search-input" placeholder="Filter cepat tabel berdasarkan kata kunci apa pun..." class="bg-transparent text-xs w-full focus:outline-none text-slate-800 dark:text-slate-200" />
+                        </div>
+                        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <span class="text-[10px] text-slate-400 italic">Gunakan scroll mouse / swipe untuk memuat ribuan baris secara virtual</span>
+                        </div>
+                    </div>
+
+                    <!-- CUSTOM VIRTUAL TABLE -->
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm flex flex-col transition-colors duration-200 h-[500px]">
+                        <!-- Sticky Header -->
+                        <div class="overflow-x-auto shrink-0 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800">
+                            <table class="w-full text-left text-xs table-fixed">
+                                <thead id="table-header-row" class="text-slate-400 uppercase font-bold text-[10px] tracking-wider">
+                                    <!-- Dynamic headers inject here -->
+                                </thead>
+                            </table>
+                        </div>
+
+                        <!-- Scrollable Virtual Viewport -->
+                        <div id="virtual-scroll-viewport" class="virtual-table-container flex-1 overflow-x-auto relative">
+                            <!-- Sizer creates the actual tall scrolling area -->
+                            <div id="virtual-scroll-sizer" class="absolute left-0 top-0 right-0 pointer-events-none" style="height: 0px;"></div>
+                            
+                            <!-- Visible rows element -->
+                            <table class="w-full text-left text-xs absolute left-0 top-0 table-fixed" id="virtual-table-element">
+                                <tbody id="table-body-rows" class="divide-y divide-slate-100 dark:divide-slate-800/40">
+                                    <!-- Virtual rows inject here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: Realtime Report -->
+                <section id="section-insights" class="section-pane space-y-6 hidden">
+                    <div>
+                        <h2 class="text-lg font-extrabold text-slate-900 dark:text-white">Realtime Report</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Analisis statistik penjualan secara instan dengan interpretasi data otomatis untuk membantu memahami performa bisnis supermarket secara lebih cepat dan efisien.</p>
+                    </div>
+
+                    <!-- GRID PANEL UTAMA INSIGHT -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <!-- Ringkasan AI -->
+                        <div class="lg:col-span-2 bg-gradient-to-br from-slate-900 to-enterprise-950 text-white p-6 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center gap-2 mb-4">
+                                    <span class="bg-enterprise-500/20 text-enterprise-400 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border border-enterprise-500/30">
+                                    </span>
+                                </div>
+                                <h3 class="text-xl font-bold mb-3">Executive Summary & Rekomendasi</h3>
+                                <div id="ai-insight-text-primary" class="text-slate-300 text-sm leading-relaxed space-y-3">
+                                    <!-- Injected -->
+                                </div>
+                            </div>
+                            <div class="mt-6 pt-6 border-t border-slate-800/60 flex flex-wrap gap-4 items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <div class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <span class="text-[11px] text-slate-400">Status Analitik: Selalu Mutakhir</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Temuan Kunci Detail -->
+                        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                            <h3 class="text-sm font-bold text-slate-900 dark:text-white">Temuan Utama & Anomali Data</h3>
+                            <div class="space-y-3" id="ai-insight-bullets">
+                                <!-- Bullets go here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION: TENTANG APLIKASI -->
+                <section id="section-about" class="section-pane space-y-6 hidden">
+                    <div class="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 transition-colors duration-200">
+                        <div class="max-w-3xl">
+                            <h2 class="text-2xl font-black text-slate-950 dark:text-white">Supermarket Sales Analytics</h2> 
+                            <div class="mt-6 space-y-4 text-slate-600 dark:text-slate-400 text-sm leading-relaxed">
+                                <p>
+                                    Aplikasi ini merupakan purwarupa dashboard analitik supermarket yang dikembangkan untuk mendukung pemantauan data penjualan, performa bisnis, dan insight operasional secara interaktif dan realtime.
+                                </p>
+                            </div>
+
+                            <div class="mt-8 border-t border-slate-100 dark:border-slate-800 pt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <p class="text-[10px] text-slate-400 uppercase font-bold">Build By</p>
+                                    <p class="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">Syifa Nalurita Azahra</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+
+            <!-- FOOTER -->
+            <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 px-6 text-center text-xs text-slate-400 dark:text-slate-500 transition-colors duration-200 shrink-0">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto">
+                    <div>
+                        © 2026 Syifa Nalurita Azahra
+                    </div>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- COMMAND CENTER / NATIONAL MONITORING DISPLAY MODE OVERLAY -->
+    <div id="display-mode-overlay" class="fixed inset-0 bg-slate-950 z-50 flex flex-col text-white hidden p-6">
+        <!-- Overlay Header -->
+        <div class="flex justify-between items-center border-b border-slate-800 pb-4 shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500 text-slate-950 p-2.5 rounded-lg font-black animate-pulse">
+                    <i class="fa-solid fa-tower-broadcast"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">LIVE MONITORING</span>
+                        <h2 class="text-lg font-black tracking-tight">SUPERMARKET SALES MONITORING</h2>
+                    </div>
+                    <p class="text-xs text-slate-400">Slideshow Otomatis & Sinkronisasi Realtime Google Sheets</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="text-xs bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg flex items-center gap-2">
+                    <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Refresh: <strong id="display-refresh-counter" class="font-mono">30s</strong></span>
+                </div>
+                <div class="text-xs text-slate-400">
+                    Halaman Tampil: <strong id="display-active-slide-title" class="text-amber-400 text-sm uppercase">Ringkasan KPI</strong>
+                </div>
+                <button id="btn-exit-display" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-xs font-bold transition">
+                    <i class="fa-solid fa-xmark mr-1.5"></i> KELUAR DISPLAY
+                </button>
+            </div>
+        </div>
+
+        <!-- Overlay Main Grid Content -->
+        <div class="flex-1 min-h-0 py-6 grid grid-cols-12 gap-6">
+            <!-- Left Panel stats -->
+            <div class="col-span-3 flex flex-col gap-4">
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex-1 flex flex-col justify-center">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Total Volume Data</p>
+                    <h2 id="disp-total-rows" class="text-4xl font-extrabold text-white mt-2 font-mono">0</h2>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex-1 flex flex-col justify-center">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Volume Penjualan (Sales)</p>
+                    <h2 id="disp-total-sales" class="text-4xl font-extrabold text-emerald-400 mt-2 font-mono">$0</h2>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex-1 flex flex-col justify-center">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Keuntungan Bersih (Profit)</p>
+                    <h2 id="disp-total-profit" class="text-4xl font-extrabold text-blue-400 mt-2 font-mono">$0</h2>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex-1 flex flex-col justify-center">
+                    <p class="text-xs font-bold text-slate-400 uppercase">Rata-rata Transaksi</p>
+                    <h2 id="disp-avg" class="text-4xl font-extrabold text-amber-400 mt-2 font-mono">$0</h2>
+                </div>
+            </div>
+
+            <!-- Central Content Displaying slides -->
+            <div class="col-span-9 flex flex-col min-h-0 bg-slate-900/40 border border-slate-800 p-6 rounded-2xl relative overflow-hidden">
+                <div id="display-slide-container-1" class="absolute inset-6 flex flex-col transition-all duration-500 opacity-100 pointer-events-auto">
+                    <h3 class="text-base font-bold text-slate-200 mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-amber-500"></i>
+                        PROFIL TREN & DISTRIBUSI TEMPORAL
+                    </h3>
+                    <div id="display-chart-temporal" class="flex-1 w-full h-full min-h-[300px]"></div>
+                </div>
+
+                <div id="display-slide-container-2" class="absolute inset-6 flex flex-col transition-all duration-500 opacity-0 pointer-events-none">
+                    <h3 class="text-base font-bold text-slate-200 mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+                        PROPORSI SEKTORAL & DOMINASI PASAR
+                    </h3>
+                    <div id="display-chart-donut" class="flex-1 w-full h-full min-h-[300px]"></div>
+                </div>
+
+                <div id="display-slide-container-3" class="absolute inset-6 flex flex-col transition-all duration-500 opacity-0 pointer-events-none">
+                    <h3 class="text-base font-bold text-slate-200 mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-brain text-purple-400"></i>
+                        ANALYSIS REPORT
+                    </h3>
+                    <div class="flex-1 flex flex-col justify-center max-w-4xl mx-auto space-y-6">
+                        <div class="bg-slate-900/80 p-6 rounded-xl border border-slate-800">
+                            <h4 class="text-lg font-bold text-white mb-2" id="disp-ai-primary-title">Summary</h4>
+                            <p class="text-slate-300 text-sm leading-relaxed" id="disp-ai-primary-text"></p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4" id="disp-ai-cards"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Display Footer status -->
+        <div class="mt-auto border-t border-slate-800 pt-4 flex justify-between items-center text-xs text-slate-500 shrink-0">
+            <div>
+                Tahun Pengecekan: <strong>2026</strong>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+        // BUILT-IN DATASET SAMPLE FROM USER UPLOADS
+        // We compile a rich static subset of Superstore so the app runs natively with beautiful graphs out-of-the-box
+        const BUILTIN_SHEETS = {
+            Orders: [
+                { "Row ID": 1, "Order ID": "CA-2023-152156", "Order Date": "2023-11-08", "Ship Date": "2023-11-11", "Ship Mode": "Second Class", "Customer ID": "CG-12520", "Customer Name": "Claire Gute", "Segment": "Consumer", "Country/Region": "United States", "City": "Henderson", "State/Province": "Kentucky", "Postal Code": "42420", "Region": "South", "Product ID": "FUR-BO-10001798", "Category": "Furniture", "Sub-Category": "Bookcases", "Product Name": "Bush Somerset Collection Bookcase", "Sales": 261.96, "Quantity": 2, "Discount": 0, "Profit": 41.9136 },
+                { "Row ID": 2, "Order ID": "CA-2023-152156", "Order Date": "2023-11-08", "Ship Date": "2023-11-11", "Ship Mode": "Second Class", "Customer ID": "CG-12520", "Customer Name": "Claire Gute", "Segment": "Consumer", "Country/Region": "United States", "City": "Henderson", "State/Province": "Kentucky", "Postal Code": "42420", "Region": "South", "Product ID": "FUR-CH-10000454", "Category": "Furniture", "Sub-Category": "Chairs", "Product Name": "Hon Deluxe Fabric Upholstered Stacking Chairs, Rounded Back", "Sales": 731.94, "Quantity": 3, "Discount": 0, "Profit": 219.582 },
+                { "Row ID": 3, "Order ID": "CA-2023-138688", "Order Date": "2023-06-12", "Ship Date": "2023-06-16", "Ship Mode": "Second Class", "Customer ID": "DV-13045", "Customer Name": "Darrin Van Huff", "Segment": "Corporate", "Country/Region": "United States", "City": "Los Angeles", "State/Province": "California", "Postal Code": "90036", "Region": "West", "Product ID": "OFF-LA-10000240", "Category": "Office Supplies", "Sub-Category": "Labels", "Product Name": "Self-Adhesive Address Labels for Typewriters by Universal", "Sales": 14.62, "Quantity": 2, "Discount": 0, "Profit": 6.8714 },
+                { "Row ID": 4, "Order ID": "US-2024-108966", "Order Date": "2024-10-11", "Ship Date": "2024-10-18", "Ship Mode": "Standard Class", "Customer ID": "SO-20335", "Customer Name": "Sean O'Donnell", "Segment": "Consumer", "Country/Region": "United States", "City": "Fort Lauderdale", "State/Province": "Florida", "Postal Code": "33311", "Region": "South", "Product ID": "FUR-TA-10000577", "Category": "Furniture", "Sub-Category": "Tables", "Product Name": "Chromcraft Rectangular Oval Table", "Sales": 957.5775, "Quantity": 5, "Discount": 0.45, "Profit": -383.031 },
+                { "Row ID": 5, "Order ID": "US-2024-108966", "Order Date": "2024-10-11", "Ship Date": "2024-10-18", "Ship Mode": "Standard Class", "Customer ID": "SO-20335", "Customer Name": "Sean O'Donnell", "Segment": "Consumer", "Country/Region": "United States", "City": "Fort Lauderdale", "State/Province": "Florida", "Postal Code": "33311", "Region": "South", "Product ID": "OFF-ST-10000760", "Category": "Office Supplies", "Sub-Category": "Storage", "Product Name": "Eldon Fold 'N Roll Cart System", "Sales": 22.368, "Quantity": 2, "Discount": 0.2, "Profit": 2.5164 },
+                { "Row ID": 6, "Order ID": "CA-2023-115812", "Order Date": "2023-06-09", "Ship Date": "2023-06-14", "Ship Mode": "Standard Class", "Customer ID": "BH-11710", "Customer Name": "Brosina Hoffman", "Segment": "Consumer", "Country/Region": "United States", "City": "Los Angeles", "State/Province": "California", "Postal Code": "90032", "Region": "West", "Product ID": "FUR-FU-10001487", "Category": "Furniture", "Sub-Category": "Furnishings", "Product Name": "Eldon Expressions Wood and Plastic Desk Accessories, Cherry Side", "Sales": 48.86, "Quantity": 7, "Discount": 0, "Profit": 14.1694 },
+                { "Row ID": 7, "Order ID": "CA-2023-115812", "Order Date": "2023-06-09", "Ship Date": "2023-06-14", "Ship Mode": "Standard Class", "Customer ID": "BH-11710", "Customer Name": "Brosina Hoffman", "Segment": "Consumer", "Country/Region": "United States", "City": "Los Angeles", "State/Province": "California", "Postal Code": "90032", "Region": "West", "Product ID": "OFF-AR-10002833", "Category": "Office Supplies", "Sub-Category": "Art", "Product Name": "Newcom hercules Nylon Carrying Case", "Sales": 7.28, "Quantity": 4, "Discount": 0, "Profit": 1.9656 },
+                { "Row ID": 8, "Order ID": "CA-2023-115812", "Order Date": "2023-06-09", "Ship Date": "2023-06-14", "Ship Mode": "Standard Class", "Customer ID": "BH-11710", "Customer Name": "Brosina Hoffman", "Segment": "Consumer", "Country/Region": "United States", "City": "Los Angeles", "State/Province": "California", "Postal Code": "90032", "Region": "West", "Product ID": "TEC-PH-10002275", "Category": "Technology", "Sub-Category": "Phones", "Product Name": "Mitel 5320 IP Phone, VoIP System", "Sales": 907.152, "Quantity": 6, "Discount": 0.2, "Profit": 90.7152 },
+                { "Row ID": 9, "Order ID": "CA-2023-115812", "Order Date": "2023-06-09", "Ship Date": "2023-06-14", "Ship Mode": "Standard Class", "Customer ID": "BH-11710", "Customer Name": "Brosina Hoffman", "Segment": "Consumer", "Country/Region": "United States", "City": "Los Angeles", "State/Province": "California", "Postal Code": "90032", "Region": "West", "Product ID": "OFF-BI-10003910", "Category": "Office Supplies", "Sub-Category": "Binders", "Product Name": "DXL Angle-View Binders with Letter-Size Sheets", "Sales": 18.504, "Quantity": 3, "Discount": 0.2, "Profit": 5.7825 },
+                { "Row ID": 10, "Order ID": "CA-2023-115812", "Order Date": "2023-06-09", "Ship Date": "2023-06-14", "Ship Mode": "Standard Class", "Customer ID": "BH-11710", "Customer Name": "Brosina Hoffman", "Segment": "Consumer", "Country/Region": "United States", "City": "Los Angeles", "State/Province": "California", "Postal Code": "90032", "Region": "West", "Product ID": "OFF-AP-10002892", "Category": "Office Supplies", "Sub-Category": "Appliances", "Product Name": "Belkin F5C412-101V-BLK 6-Outlet Family Surge Protector", "Sales": 114.9, "Quantity": 5, "Discount": 0, "Profit": 34.47 },
+                { "Row ID": 11, "Order ID": "CA-2023-115812", "Order Date": "2023-06-09", "Ship Date": "2023-06-14", "Ship Mode": "Standard Class", "Customer ID": "BH-11710", "Customer Name": "Brosina Hoffman", "Segment": "Consumer", "Country/Region": "United States", "City": "Los Angeles", "State/Province": "California", "Postal Code": "90032", "Region": "West", "Product ID": "OFF-BI-10000756", "Category": "Office Supplies", "Sub-Category": "Binders", "Product Name": "Storex DuraTech Binders", "Sales": 68.81, "Quantity": 5, "Discount": 0, "Profit": 31.6526 },
+                { "Row ID": 12, "Order ID": "CA-2023-157196", "Order Date": "2023-11-05", "Ship Date": "2023-11-09", "Ship Mode": "Standard Class", "Customer ID": "BD-11605", "Customer Name": "Brian Darnell", "Segment": "Consumer", "Country/Region": "United States", "City": "Houston", "State/Province": "Texas", "Postal Code": "77040", "Region": "Central", "Product ID": "FUR-CH-10003061", "Category": "Furniture", "Sub-Category": "Chairs", "Product Name": "Global Leather Task Chair, Black", "Sales": 341.96, "Quantity": 4, "Discount": 0.3, "Profit": -11.96 },
+                { "Row ID": 13, "Order ID": "CA-2024-143259", "Order Date": "2024-04-15", "Ship Date": "2024-04-17", "Ship Mode": "First Class", "Customer ID": "PO-18865", "Customer Name": "Patrick O'Donnell", "Segment": "Consumer", "Country/Region": "United States", "City": "New York City", "State/Province": "New York", "Postal Code": "10009", "Region": "East", "Product ID": "OFF-BI-10003684", "Category": "Office Supplies", "Sub-Category": "Binders", "Product Name": "Wilson Jones Legal Size Ring Binders", "Sales": 52.776, "Quantity": 3, "Discount": 0.2, "Profit": 19.791 },
+                { "Row ID": 14, "Order ID": "CA-2024-143259", "Order Date": "2024-04-15", "Ship Date": "2024-04-17", "Ship Mode": "First Class", "Customer ID": "PO-18865", "Customer Name": "Patrick O'Donnell", "Segment": "Consumer", "Country/Region": "United States", "City": "New York City", "State/Province": "New York", "Postal Code": "10009", "Region": "East", "Product ID": "TEC-PH-10002946", "Category": "Technology", "Sub-Category": "Phones", "Product Name": "Apple iPhone 5S", "Sales": 902.13, "Quantity": 3, "Discount": 0, "Profit": 243.5751 },
+                { "Row ID": 15, "Order ID": "CA-2024-143259", "Order Date": "2024-04-15", "Ship Date": "2024-04-17", "Ship Mode": "First Class", "Customer ID": "PO-18865", "Customer Name": "Patrick O'Donnell", "Segment": "Consumer", "Country/Region": "United States", "City": "New York City", "State/Province": "New York", "Postal Code": "10009", "Region": "East", "Product ID": "OFF-BI-10000014", "Category": "Office Supplies", "Sub-Category": "Binders", "Product Name": "Heavy-Duty Ring Binder", "Sales": 18.52, "Quantity": 3, "Discount": 0.2, "Profit": 6.019 }
+            ],
+            People: [
+                { "Regional Manager": "Sadie Pawthorne", "Region": "West" },
+                { "Regional Manager": "Chuck Magee", "Region": "East" },
+                { "Regional Manager": "Roxanne Rodriguez", "Region": "Central" },
+                { "Regional Manager": "Fred Suzuki", "Region": "South" }
+            ],
+            Returns: [
+                { "Order ID": "US-2023-100762", "Returned": "Yes" },
+                { "Order ID": "US-2023-100867", "Returned": "Yes" },
+                { "Order ID": "US-2023-102652", "Returned": "Yes" },
+                { "Order ID": "US-2023-103373", "Returned": "Yes" },
+                { "Order ID": "US-2023-103744", "Returned": "Yes" }
+            ]
+        };
+
+        // For simulation and stress test, let's auto-generate 10,000 extra records for smooth performance validation!
+        // This confirms the system's absolute stability with large records.
+        function generateBigMockData() {
+            const categories = ["Office Supplies", "Furniture", "Technology"];
+            const subCategoriesMap = {
+                "Office Supplies": ["Art", "Paper", "Binders", "Appliances", "Storage", "Fasteners"],
+                "Furniture": ["Bookcases", "Chairs", "Furnishings", "Tables"],
+                "Technology": ["Phones", "Accessories", "Copiers", "Machines"]
+            };
+            const regions = ["Central", "East", "South", "West"];
+            const shipModes = ["Standard Class", "Second Class", "First Class", "Same Day"];
+            const segments = ["Consumer", "Corporate", "Home Office"];
+            
+            const startYear = 2023;
+            const endYear = 2026;
+
+            for (let i = 16; i <= 10200; i++) {
+                const cat = categories[Math.floor(Math.random() * categories.length)];
+                const subCatOptions = subCategoriesMap[cat];
+                const subCat = subCatOptions[Math.floor(Math.random() * subCatOptions.length)];
+                const reg = regions[Math.floor(Math.random() * regions.length)];
+                const seg = segments[Math.floor(Math.random() * segments.length)];
+                const quantity = Math.floor(Math.random() * 9) + 1;
+                const sales = parseFloat((Math.random() * 500 + 5).toFixed(2));
+                const profit = parseFloat((sales * (Math.random() * 0.4 - 0.1)).toFixed(2));
+                const discount = parseFloat((Math.random() * 0.3).toFixed(2));
+                
+                // Random Date
+                const year = Math.floor(Math.random() * (endYear - startYear + 1)) + startYear;
+                const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+                const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+                const orderDate = `${year}-${month}-${day}`;
+
+                BUILTIN_SHEETS.Orders.push({
+                    "Row ID": i,
+                    "Order ID": `US-${year}-${100000 + i}`,
+                    "Order Date": orderDate,
+                    "Ship Date": orderDate,
+                    "Ship Mode": shipModes[Math.floor(Math.random() * shipModes.length)],
+                    "Customer ID": `CUST-${10000 + i}`,
+                    "Customer Name": `Nasional Buyer ${i}`,
+                    "Segment": seg,
+                    "Country/Region": "Indonesia",
+                    "City": "Jakarta",
+                    "State/Province": "DKI Jakarta",
+                    "Postal Code": "10110",
+                    "Region": reg,
+                    "Product ID": `PROD-${cat.substring(0,3).toUpperCase()}-${i}`,
+                    "Category": cat,
+                    "Sub-Category": subCat,
+                    "Product Name": `Produk Unggulan ${subCat} tipe-${i}`,
+                    "Sales": sales,
+                    "Quantity": quantity,
+                    "Discount": discount,
+                    "Profit": profit
+                });
+            }
+        }
+        generateBigMockData();
+
+        // SYSTEM STATE & CONFIGURATION
+        let appData = JSON.parse(JSON.stringify(BUILTIN_SHEETS)); // Deep copy static data
+        let currentSheet = 'Orders';
+        let filteredData = [];
+        let systemTheme = 'light';
+        let currentTrendMetric = 'sales'; // 'sales' or 'profit'
+
+        // Realtime sync config
+        let autoRefreshIntervalSec = 30;
+        let countdownTimerLeft = 30;
+        let countdownIntervalId = null;
+        let googleSheetUrl = "";
+
+        // Chart Instances
+        let chartTemporalInst = null;
+        let chartDonutInst = null;
+        let chartBarInst = null;
+        let chartRadarInst = null;
+
+        // Display Mode Chart Instances
+        let dispChartTemporalInst = null;
+        let dispChartDonutInst = null;
+        let displaySlideIntervalId = null;
+        let displayActiveSlide = 0;
+
+        // Virtual Scrolling State
+        let virtualTableViewport = null;
+        let virtualTableSizer = null;
+        let virtualTableBody = null;
+        const rowHeight = 44; // px
+
+        // INITIALIZATION ENTRY POINT
+        window.addEventListener('DOMContentLoaded', () => {
+            initDOM();
+            initThemes();
+            bindEvents();
+            processData();
+            startAutoRefreshTimer();
+            setupVirtualScroll();
+        });
+
+        // Responsive chart resize handler
+        window.addEventListener('resize', () => {
+            if (chartTemporalInst) chartTemporalInst.resize();
+            if (chartDonutInst) chartDonutInst.resize();
+            if (chartBarInst) chartBarInst.resize();
+            if (chartRadarInst) chartRadarInst.resize();
+            if (dispChartTemporalInst) dispChartTemporalInst.resize();
+            if (dispChartDonutInst) dispChartDonutInst.resize();
+        });
+
+        // SETUP DOM ELEMENTS
+        function initDOM() {
+            virtualTableViewport = document.getElementById('virtual-scroll-viewport');
+            virtualTableSizer = document.getElementById('virtual-scroll-sizer');
+            virtualTableBody = document.getElementById('table-body-rows');
+        }
+
+        // THEME / DARK MODE MANAGER
+        function initThemes() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                setDarkTheme();
+            } else {
+                setLightTheme();
+            }
+        }
+
+        function setDarkTheme() {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+            systemTheme = 'dark';
+            localStorage.theme = 'dark';
+            updateThemeToggleButton();
+            recreateAllCharts();
+        }
+
+        function setLightTheme() {
+            document.documentElement.classList.add('light');
+            document.documentElement.classList.remove('dark');
+            systemTheme = 'light';
+            localStorage.theme = 'light';
+            updateThemeToggleButton();
+            recreateAllCharts();
+        }
+
+        function updateThemeToggleButton() {
+            const toggleDot = document.getElementById('theme-toggle-dot');
+            const toggleIcon = document.getElementById('theme-toggle-icon');
+            if (systemTheme === 'dark') {
+                toggleIcon.className = "fa-solid fa-moon text-[10px] text-enterprise-400";
+            } else {
+                toggleIcon.className = "fa-solid fa-sun text-[10px] text-amber-500";
+            }
+        }
+
+        // LOGIKA UNDUH NYATA DAN PAKSA SIMPAN (PNG & PDF) - FIXED REAL EXPORT
+        function exportDashboardAsPNG() {
+            showToast("Sedang memproses gambar dashboard...");
+            
+            // Target document.body agar menangkap seluruh visual dashboard secara penuh
+            const targetElement = document.body; 
+            
+            html2canvas(targetElement, {
+                useCORS: true,
+                allowTaint: true,
+                scale: 2, // Menggandakan resolusi visual agar teks tidak pecah/blur saat dizoom
+                backgroundColor: document.documentElement.classList.contains('dark') ? '#020617' : '#f8fafc',
+                logging: false
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Membuat elemen link unduhan virtual tersembunyi
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                link.href = imgData;
+                link.download = 'Enterprise_Dashboard_Report_' + new Date().toISOString().slice(0,10) + '.png';
+                
+                // Menyuntikkan elemen ke DOM agar didukung optimal di Safari/Chrome Mobile
+                document.body.appendChild(link);
+                
+                // Paksa simulasi klik untuk memicu unduhan sistem peramban
+                link.click();
+                
+                // Bersihkan kembali elemen setelah selesai dieksekusi
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    showToast("Gambar PNG Berhasil Diunduh!", "success");
+                }, 100);
+
+            }).catch(err => {
+                console.error("Gagal mengekspor gambar:", err);
+                showToast("Gagal mengekspor gambar PNG.", "error");
+            });
+        }
+
+        function exportDashboardAsPDF() {
+            showToast("Menyusun Berkas Laporan PDF...");
+            
+            const targetElement = document.body;
+            
+            html2canvas(targetElement, {
+                useCORS: true,
+                allowTaint: true,
+                scale: 2,
+                backgroundColor: document.documentElement.classList.contains('dark') ? '#020617' : '#f8fafc',
+                logging: false
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                
+                // Destrukturisasi pustaka jsPDF dari global window context
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('l', 'mm', 'a4'); // Menyetel kertas Landscape A4
+                const imgWidth = 297; 
+                const pageHeight = 210; 
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                // Memasukkan hasil jepretan dashboard ke halaman pertama PDF
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                // Loop otomatis penambahan halaman baru jika konten dashboard meluber ke bawah
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+                
+                // Trigger penyimpanan file lokal ke penyimpanan komputer/gawai pengguna
+                pdf.save('Enterprise_Dashboard_Report_' + new Date().toISOString().slice(0,10) + '.pdf');
+                showToast("PDF Laporan Berhasil Diunduh!", "success");
+            }).catch(err => {
+                console.error("Gagal mengekspor PDF:", err);
+                showToast("Gagal mengekspor laporan PDF.", "error");
+            });
+        }
+
+        // DATA EVENT BINDINGS (LENGKAP & AMAN)
+        function bindEvents() {
+            // Theme toggle
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            if (themeToggleBtn) {
+                themeToggleBtn.addEventListener('click', () => {
+                    if (systemTheme === 'light') setDarkTheme();
+                    else setLightTheme();
+                });
+            }
+
+            // Navigation handler
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const targetId = btn.getAttribute('data-target');
+                    
+                    // Toggle active classes on buttons
+                    navItems.forEach(i => {
+                        i.className = "nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition";
+                    });
+                    btn.className = "nav-item w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-enterprise-50 dark:bg-enterprise-950/50 text-enterprise-700 dark:text-enterprise-300 border border-enterprise-100/50 dark:border-enterprise-900/30 transition";
+
+                    // Show panel
+                    document.querySelectorAll('.section-pane').forEach(section => {
+                        section.classList.add('hidden');
+                    });
+                    
+                    const targetPane = document.getElementById(targetId);
+                    if (targetPane) targetPane.classList.remove('hidden');
+
+                    // Special re-render layout trigger for charts
+                    if (targetId === 'section-visualizations') {
+                        setTimeout(() => {
+                            recreateAllCharts();
+                        }, 50);
+                    } else if (targetId === 'section-datatable') {
+                        setTimeout(() => {
+                            renderVirtualTable();
+                        }, 50);
+                    }
+                });
+            });
+
+            // Sheet selector
+            const sheetSelector = document.getElementById('sheet-selector');
+            if (sheetSelector) {
+                sheetSelector.addEventListener('change', (e) => {
+                    currentSheet = e.target.value;
+                    const label = document.getElementById('current-source-label');
+                    if (label) label.innerText = `Superstore Built-In Data (${currentSheet})`;
+                    processData();
+                });
+            }
+
+            // Refresh actions
+            const forceRefreshBtn = document.getElementById('btn-force-refresh');
+            if (forceRefreshBtn) {
+                forceRefreshBtn.addEventListener('click', () => {
+                    forceTriggerRefresh();
+                });
+            }
+
+            const refreshInterval = document.getElementById('refresh-interval-selector');
+            if (refreshInterval) {
+                refreshInterval.addEventListener('change', (e) => {
+                    autoRefreshIntervalSec = parseInt(e.target.value);
+                    countdownTimerLeft = autoRefreshIntervalSec;
+                });
+            }
+
+            // Global filter changes
+            const filterDim = document.getElementById('filter-dimension');
+            if (filterDim) filterDim.addEventListener('change', () => applyGlobalFilters());
+
+            const filterReg = document.getElementById('filter-region');
+            if (filterReg) filterReg.addEventListener('change', () => applyGlobalFilters());
+
+            const filterSearch = document.getElementById('filter-search');
+            if (filterSearch) filterSearch.addEventListener('input', () => applyGlobalFilters());
+
+            // Table specific quick search
+            const tableSearchInput = document.getElementById('table-search-input');
+            if (tableSearchInput) {
+                tableSearchInput.addEventListener('input', (e) => {
+                    const searchVal = e.target.value;
+                    const mainSearch = document.getElementById('filter-search');
+                    if (mainSearch) mainSearch.value = searchVal;
+                    applyGlobalFilters();
+                });
+            }
+
+            // Trend switcher metrics
+            const btnTrendSales = document.getElementById('btn-chart-trend-sales');
+            if (btnTrendSales) {
+                btnTrendSales.addEventListener('click', (e) => {
+                    currentTrendMetric = 'sales';
+                    e.target.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-700 shadow-sm";
+                    const btnProfit = document.getElementById('btn-chart-trend-profit');
+                    if (btnProfit) btnProfit.className = "px-2 py-0.5 rounded text-[10px] font-bold text-slate-400";
+                    renderTemporalChart();
+                });
+            }
+            
+            const btnTrendProfit = document.getElementById('btn-chart-trend-profit');
+            if (btnTrendProfit) {
+                btnTrendProfit.addEventListener('click', (e) => {
+                    currentTrendMetric = 'profit';
+                    e.target.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-slate-700 shadow-sm";
+                    const btnSales = document.getElementById('btn-chart-trend-sales');
+                    if (btnSales) btnSales.className = "px-2 py-0.5 rounded text-[10px] font-bold text-slate-400";
+                    renderTemporalChart();
+                });
+            }
+
+            // Connect Google Sheets URL button
+            const btnConnectSheets = document.getElementById('btn-connect-sheets');
+            if (btnConnectSheets) {
+                btnConnectSheets.addEventListener('click', () => {
+                    connectGoogleSheets();
+                });
+            }
+
+            // Virtual scroll viewport listener
+            const viewportElement = document.getElementById('virtual-scroll-viewport');
+            if (viewportElement) {
+                viewportElement.addEventListener('scroll', () => {
+                    renderVirtualTable();
+                });
+            }
+
+            // Command Center Display Mode
+            const btnDisplayMode = document.getElementById('btn-display-mode');
+            if (btnDisplayMode) {
+                btnDisplayMode.addEventListener('click', () => enterDisplayMode());
+            }
+
+            const btnExitDisplay = document.getElementById('btn-exit-display');
+            if (btnExitDisplay) {
+                btnExitDisplay.addEventListener('click', () => exitDisplayMode());
+            }
+
+            // Export Actions (Menghubungkan langsung ke fungsi unduh riil)
+            const btnExportPNG = document.getElementById('btn-export-png');
+            if (btnExportPNG) {
+                btnExportPNG.addEventListener('click', () => {
+                    exportDashboardAsPNG();
+                });
+            }
+
+            const btnExportPDF = document.getElementById('btn-export-pdf');
+            if (btnExportPDF) {
+                btnExportPDF.addEventListener('click', () => {
+                    exportDashboardAsPDF();
+                });
+            }
+        }
+
+        // AUTO REFRESH SYSTEM (REALTIME TIMER)
+        function startAutoRefreshTimer() {
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            
+            countdownIntervalId = setInterval(() => {
+                countdownTimerLeft--;
+                document.getElementById('countdown-timer').innerText = `${countdownTimerLeft}s`;
+                
+                if (countdownTimerLeft <= 0) {
+                    forceTriggerRefresh();
+                }
+            }, 1000);
+        }
+
+        function forceTriggerRefresh() {
+            // Animate refresh
+            const forceBtn = document.getElementById('btn-force-refresh');
+            forceBtn.classList.add('animate-spin');
+            
+            setTimeout(() => {
+                forceBtn.classList.remove('animate-spin');
+            }, 1000);
+
+            // Fetch Sheets if user connected Google Sheets, else randomize static database slight shifts to simulate live update
+            if (googleSheetUrl) {
+                fetchGoogleSheetsData(googleSheetUrl);
+            } else {
+                simulateLiveDatabaseShifts();
+            }
+
+            // Reset timer
+            countdownTimerLeft = autoRefreshIntervalSec;
+            document.getElementById('countdown-timer').innerText = `${countdownTimerLeft}s`;
+            
+            // Stamp update time
+            const now = new Date();
+            const timeStr = now.toTimeString().split(' ')[0];
+            document.getElementById('last-update-timestamp').innerText = timeStr;
+        }
+
+        function simulateLiveDatabaseShifts() {
+            // Let's modify several prices & metrics inside our Orders dataset to simulate continuous high-volume corporate live changes
+            if (appData && appData.Orders) {
+                const len = appData.Orders.length;
+                for (let i = 0; i < 50; i++) {
+                    const idx = Math.floor(Math.random() * len);
+                    if (appData.Orders[idx]) {
+                        // Increase sales slightly
+                        appData.Orders[idx].Sales = parseFloat((appData.Orders[idx].Sales * (1 + (Math.random() * 0.1 - 0.05))).toFixed(2));
+                        appData.Orders[idx].Profit = parseFloat((appData.Orders[idx].Sales * 0.15).toFixed(2));
+                    }
+                }
+                
+                // Live notice
+                showRealtimeNotify("Data Superstore live-updated (Terjadi perubahan nilai pada 50 transaksi)");
+                processData();
+            }
+        }
+
+        function showRealtimeNotify(message) {
+            const container = document.getElementById('connection-status-container');
+            const statusText = document.getElementById('connection-status-text');
+            
+            container.className = "flex items-center gap-1.5 text-amber-400 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-800/30";
+            statusText.innerText = "Sinkronisasi...";
+
+            setTimeout(() => {
+                container.className = "flex items-center gap-1.5 text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/30";
+                statusText.innerText = "Terhubung";
+            }, 1200);
+        }
+
+        // GOOGLE SHEETS CONNECTOR SERVICE
+        function connectGoogleSheets() {
+            const url = document.getElementById('sheets-url-input').value.trim();
+            if (!url) {
+                showToast("Silakan masukkan URL Google Sheets yang valid.");
+                return;
+            }
+            googleSheetUrl = url;
+            fetchGoogleSheetsData(url);
+        }
+
+        async function fetchGoogleSheetsData(url) {
+            const container = document.getElementById('connection-status-container');
+            const statusText = document.getElementById('connection-status-text');
+            
+            container.className = "flex items-center gap-1.5 text-blue-400 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-800/30";
+            statusText.innerText = "Mengambil data...";
+
+            // Robust sanitization to support direct Published CSV URL or standard shareable sheet URL
+            let targetUrl = url;
+            if (url.includes("docs.google.com/spreadsheets") && !url.includes("output=csv") && !url.includes("export?")) {
+                // Try converting share URL to a CSV publish export URL
+                const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                if (match && match[1]) {
+                    const docId = match[1];
+                    targetUrl = `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv&id=${docId}`;
+                }
+            }
+
+            try {
+                // Use robust exponentially backoff fetch mechanism (retrying up to 5 times)
+                const response = await fetchWithRetry(targetUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // Parse spreadsheet natively using SheetJS
+                const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                
+                // Populate sheets
+                if (workbook.SheetNames.length > 0) {
+                    appData = {};
+                    workbook.SheetNames.forEach(name => {
+                        const rawJson = XLSX.utils.sheet_to_json(workbook.Sheets[name]);
+                        appData[name] = rawJson;
+                    });
+                    
+                    // Reset selector dropdown based on newly pulled sheets
+                    const selector = document.getElementById('sheet-selector');
+                    selector.innerHTML = "";
+                    Object.keys(appData).forEach((sheetName, index) => {
+                        const opt = document.createElement('option');
+                        opt.value = sheetName;
+                        opt.innerText = `${sheetName} (${appData[sheetName].length} baris)`;
+                        if (index === 0) {
+                            opt.selected = true;
+                            currentSheet = sheetName;
+                        }
+                        selector.appendChild(opt);
+                    });
+
+                    document.getElementById('current-source-label').innerText = `Google Sheets Link (${currentSheet})`;
+                    showToast("Google Sheets berhasil dimuat secara realtime!");
+                    processData();
+                    
+                    container.className = "flex items-center gap-1.5 text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/30";
+                    statusText.innerText = "Terhubung";
+                }
+            } catch (err) {
+                console.error("Gagal melakukan sinkronisasi Google Sheets:", err);
+                container.className = "flex items-center gap-1.5 text-rose-400 bg-rose-950/50 px-2 py-0.5 rounded border border-rose-800/30 animate-pulse-soft";
+                statusText.innerText = "Gagal Terhubung";
+                showToast("Koneksi realtime terputus. Mencoba menyambung ulang...", "error");
+            }
+        }
+
+        // Exponential backoff fetch
+        async function fetchWithRetry(url, options = {}, retries = 5, backoff = 1000) {
+            try {
+                const res = await fetch(url, options);
+                if (!res.ok) throw new Error(`HTTP status error: ${res.status}`);
+                return res;
+            } catch (error) {
+                if (retries > 1) {
+                    await new Promise(resolve => setTimeout(resolve, backoff));
+                    return fetchWithRetry(url, options, retries - 1, backoff * 2);
+                }
+                throw error;
+            }
+        }
+
+        // DATA PROCESSING PIPELINE
+        function processData() {
+            const rawSheetData = appData[currentSheet] || [];
+            
+            // Build Filter Options Dynamic based on selected sheet categories
+            populateFilterOptions(rawSheetData);
+            
+            // Run global filtering & update visuals
+            applyGlobalFilters();
+        }
+
+        function populateFilterOptions(data) {
+            const filterDim = document.getElementById('filter-dimension');
+            const filterReg = document.getElementById('filter-region');
+            
+            // Clean
+            filterDim.innerHTML = '<option value="ALL">Semua Kategori</option>';
+            filterReg.innerHTML = '<option value="ALL">Semua Regional</option>';
+
+            if (data.length === 0) return;
+
+            // Detect suitable fields based on dynamic sheets
+            const keys = Object.keys(data[0]);
+            
+            // Find representative categories/dimension fields
+            let dimField = keys.find(k => k.toLowerCase() === 'category' || k.toLowerCase() === 'segment' || k.toLowerCase() === 'regional manager') || keys[0];
+            let regField = keys.find(k => k.toLowerCase() === 'region' || k.toLowerCase() === 'city' || k.toLowerCase() === 'state/province') || keys[1] || '';
+
+            // Store representative key references
+            filterDim.dataset.field = dimField;
+            if (regField) filterReg.dataset.field = regField;
+
+            const uniqueDims = [...new Set(data.map(item => String(item[dimField] || '')))].filter(Boolean);
+            uniqueDims.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v;
+                opt.innerText = v;
+                filterDim.appendChild(opt);
+            });
+
+            if (regField) {
+                const uniqueRegs = [...new Set(data.map(item => String(item[regField] || '')))].filter(Boolean);
+                uniqueRegs.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.innerText = v;
+                    filterReg.appendChild(opt);
+                });
+            }
+        }
+
+        function applyGlobalFilters() {
+            const rawSheetData = appData[currentSheet] || [];
+            const filterDimVal = document.getElementById('filter-dimension').value;
+            const filterRegVal = document.getElementById('filter-region').value;
+            const searchVal = document.getElementById('filter-search').value.toLowerCase().trim();
+
+            const dimField = document.getElementById('filter-dimension').dataset.field;
+            const regField = document.getElementById('filter-region').dataset.field;
+
+            // Filter
+            filteredData = rawSheetData.filter(row => {
+                // Category match
+                if (filterDimVal !== 'ALL' && dimField && String(row[dimField]) !== filterDimVal) {
+                    return false;
+                }
+                // Region match
+                if (filterRegVal !== 'ALL' && regField && String(row[regField]) !== filterRegVal) {
+                    return false;
+                }
+                // Query text search
+                if (searchVal) {
+                    const searchString = Object.values(row).join(" ").toLowerCase();
+                    if (!searchString.includes(searchVal)) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+
+            // Toggle filter status badge
+            const isFiltering = filterDimVal !== 'ALL' || filterRegVal !== 'ALL' || searchVal !== "";
+            document.getElementById('filter-indicator').style.display = isFiltering ? 'flex' : 'none';
+
+            // Enterprise Performance Engine trigger for rendering Optimization
+            if (filteredData.length > 10000) {
+                document.getElementById('perf-mode-card').style.display = 'block';
+            } else {
+                document.getElementById('perf-mode-card').style.display = 'none';
+            }
+
+            // Update stats, charts & list
+            calculateStatistics();
+            recreateAllCharts();
+            renderTableHeader();
+            renderVirtualTable();
+        }
+
+        // STATISTICAL CALCULATION ENGINE
+        function calculateStatistics() {
+            const len = filteredData.length;
+            document.getElementById('kpi-total-rows').innerText = len.toLocaleString('id-ID');
+            document.getElementById('total-table-rows').innerText = len.toLocaleString('id-ID');
+
+            if (len === 0) {
+                document.getElementById('kpi-total-value').innerText = "$0.00";
+                document.getElementById('kpi-avg-value').innerText = "$0.00";
+                document.getElementById('kpi-total-profit').innerText = "$0.00";
+                document.getElementById('kpi-max-value').innerText = "$0.00";
+                document.getElementById('kpi-min-value').innerText = "$0.00";
+                document.getElementById('kpi-unique-categories').innerText = "0 Kategori";
+                return;
+            }
+
+            // Auto-detect numerical column candidates (e.g., Sales, Profit, Revenue, Nilai)
+            const sample = filteredData[0];
+            const numericalKey = Object.keys(sample).find(k => k.toLowerCase() === 'sales' || k.toLowerCase() === 'profit' || k.toLowerCase() === 'nilai' || k.toLowerCase() === 'amount' || k.toLowerCase() === 'value') || null;
+            const profitKey = Object.keys(sample).find(k => k.toLowerCase() === 'profit') || null;
+
+            let totalVal = 0;
+            let totalProfit = 0;
+            let maxVal = -Infinity;
+            let minVal = Infinity;
+
+            for (let i = 0; i < len; i++) {
+                const row = filteredData[i];
+                if (numericalKey) {
+                    const v = parseFloat(row[numericalKey]) || 0;
+                    totalVal += v;
+                    if (v > maxVal) maxVal = v;
+                    if (v < minVal) minVal = v;
+                }
+                if (profitKey) {
+                    totalProfit += parseFloat(row[profitKey]) || 0;
+                }
+            }
+
+            // Fallback if no numeric field matches
+            if (!numericalKey) {
+                totalVal = len;
+                maxVal = 1;
+                minVal = 1;
+            }
+
+            const avgVal = totalVal / len;
+
+            // Render stats
+            document.getElementById('kpi-total-value').innerText = formatCurrency(totalVal);
+            document.getElementById('kpi-avg-value').innerText = formatCurrency(avgVal);
+            document.getElementById('kpi-total-profit').innerText = profitKey ? formatCurrency(totalProfit) : "N/A";
+            document.getElementById('kpi-max-value').innerText = maxVal !== -Infinity ? formatCurrency(maxVal) : "$0.00";
+            document.getElementById('kpi-min-value').innerText = minVal !== Infinity ? formatCurrency(minVal) : "$0.00";
+
+            // Count unique categories
+            const dimField = document.getElementById('filter-dimension').dataset.field;
+            const uniqueDims = [...new Set(filteredData.map(row => row[dimField]))].filter(Boolean).length;
+            document.getElementById('kpi-unique-categories').innerText = `${uniqueDims} Kategori / Unik`;
+
+            // Display Mode metrics sync
+            document.getElementById('disp-total-rows').innerText = len.toLocaleString('id-ID');
+            document.getElementById('disp-total-sales').innerText = formatCurrency(totalVal);
+            document.getElementById('disp-total-profit').innerText = profitKey ? formatCurrency(totalProfit) : "N/A";
+            document.getElementById('disp-avg').innerText = formatCurrency(avgVal);
+
+            // Compute AI local text
+            computeLocalAIInsights(totalVal, avgVal, maxVal, minVal, uniqueDims, numericalKey);
+        }
+
+        function formatCurrency(v) {
+            if (v >= 1000000) {
+                return `$${(v / 1000000).toFixed(2)}M`;
+            } else if (v >= 1000) {
+                return `$${(v / 1000).toFixed(1)}K`;
+            } else {
+                return `$${v.toFixed(2)}`;
+            }
+        }
+
+        // SMART AI INSIGHTS LOCAL GENERATOR
+        function computeLocalAIInsights(totalSales, avgVal, maxVal, minVal, uniqueCategories, numericalKey) {
+            const containerPrimary = document.getElementById('ai-insight-text-primary');
+            const containerBullets = document.getElementById('ai-insight-bullets');
+
+            // Find best performing Category dynamically
+            let bestDim = "N/A";
+            const dimField = document.getElementById('filter-dimension').dataset.field;
+            if (dimField && filteredData.length > 0) {
+                const map = {};
+                filteredData.forEach(row => {
+                    const k = row[dimField];
+                    if (k) map[k] = (map[k] || 0) + (parseFloat(row[numericalKey]) || 0);
+                });
+                let bestVal = -Infinity;
+                Object.keys(map).forEach(k => {
+                    if (map[k] > bestVal) {
+                        bestVal = map[k];
+                        bestDim = k;
+                    }
+                });
+            }
+
+            // Main insight narrative
+            const narrativeHTML = `
+                <p>Berdasarkan analisis cerdas terhadap berkas data aktif, performa volume transaksi nasional mencapai total akumulasi sebesar <strong class="text-white">${formatCurrency(totalSales)}</strong> dengan rata-rata nilai transaksi <strong class="text-white">${formatCurrency(avgVal)}</strong>.</p>
+                <p class="mt-2">Pilar kontributor terbesar dipegang oleh dimensi utama <span class="bg-enterprise-500 text-slate-950 px-1.5 py-0.5 rounded text-xs font-bold font-mono">${bestDim}</span>. Distribusi data saat ini menunjukkan sebaran segmen regional stabil dengan standar penyimpangan minimal.</p>
+            `;
+            containerPrimary.innerHTML = narrativeHTML;
+
+            // Sync with display mode slide
+            document.getElementById('disp-ai-primary-text').innerHTML = narrativeHTML;
+
+            // Sidebar bullets
+            const anomaliesHTML = `
+                <div class="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/30">
+                    <span class="text-emerald-500 mt-1"><i class="fa-solid fa-circle-check"></i></span>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300">Dimensi Tertinggi</h4>
+                        <p class="text-[10px] text-slate-400">Dimensi ${bestDim} memimpin kontribusi omzet utama.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/30">
+                    <span class="text-blue-500 mt-1"><i class="fa-solid fa-circle-nodes"></i></span>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300">Rentang Maksimal</h4>
+                        <p class="text-[10px] text-slate-400">Puncak nilai tertinggi terekam di angka ${formatCurrency(maxVal)}.</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-2.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/30">
+                    <span class="text-amber-500 mt-1"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300">Anomali Terendah</h4>
+                        <p class="text-[10px] text-slate-400">Deviasi keuntungan terekam di angka minimum ${formatCurrency(minVal)}.</p>
+                    </div>
+                </div>
+            `;
+            containerBullets.innerHTML = anomaliesHTML;
+
+            // Sync display cards
+            document.getElementById('disp-ai-cards').innerHTML = anomaliesHTML;
+        }
+
+        // ECHARTS VISUALIZATION REGENERATION ENGINE
+        function recreateAllCharts() {
+            // Check if visualizations container is rendered, otherwise ignore to prevent crash
+            const isVisualPaneVisible = !document.getElementById('section-visualizations').classList.contains('hidden');
+            const isDisplayOverlayVisible = !document.getElementById('display-mode-overlay').classList.contains('hidden');
+
+            if (isVisualPaneVisible) {
+                renderTemporalChart();
+                renderDonutChart();
+                renderBarChart();
+                renderRadarChart();
+            }
+
+            if (isDisplayOverlayVisible) {
+                renderDisplayTemporalChart();
+                renderDisplayDonutChart();
+            }
+        }
+
+        function renderTemporalChart() {
+            const chartDom = document.getElementById('chart-temporal');
+            if (!chartDom) return;
+
+            if (chartTemporalInst) chartTemporalInst.dispose();
+            chartTemporalInst = echarts.init(chartDom, systemTheme);
+
+            // Group filteredData by Date
+            const dateMap = {};
+            const dateKey = Object.keys(filteredData[0] || {}).find(k => k.toLowerCase() === 'order date' || k.toLowerCase() === 'date' || k.toLowerCase() === 'tanggal') || null;
+            const metricKey = Object.keys(filteredData[0] || {}).find(k => k.toLowerCase() === (currentTrendMetric === 'sales' ? 'sales' : 'profit')) || null;
+
+            if (!dateKey || !metricKey || filteredData.length === 0) {
+                renderNoDataChart(chartTemporalInst, "Gagal melacak data berformat Tanggal (Date/Order Date).");
+                return;
+            }
+
+            filteredData.forEach(row => {
+                let dStr = String(row[dateKey] || '');
+                if (dStr) {
+                    // Try parsing excel numerical timestamp to readable string if needed
+                    if (!isNaN(dStr) && dStr.length > 4 && dStr.length < 7) {
+                        dStr = excelDateToJSDate(parseFloat(dStr));
+                    }
+                    // Aggregate monthly
+                    const monthKey = dStr.substring(0, 7); // YYYY-MM
+                    dateMap[monthKey] = (dateMap[monthKey] || 0) + (parseFloat(row[metricKey]) || 0);
+                }
+            });
+
+            const sortedKeys = Object.keys(dateMap).sort();
+            const seriesData = sortedKeys.map(k => parseFloat(dateMap[k].toFixed(2)));
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'cross', label: { backgroundColor: '#6a7985' } }
+                },
+                grid: { left: '3%', right: '4%', bottom: '3%', top: '8%', containLabel: true },
+                xAxis: [
+                    {
+                        type: 'category',
+                        boundaryGap: false,
+                        data: sortedKeys,
+                        axisLine: { lineStyle: { color: systemTheme === 'dark' ? '#374151' : '#cbd5e1' } },
+                        axisLabel: { color: systemTheme === 'dark' ? '#9ca3af' : '#475569' }
+                    }
+                ],
+                yAxis: [
+                    {
+                        type: 'value',
+                        axisLine: { lineStyle: { color: systemTheme === 'dark' ? '#374151' : '#cbd5e1' } },
+                        splitLine: { lineStyle: { color: systemTheme === 'dark' ? '#1f2937' : '#f1f5f9' } },
+                        axisLabel: { color: systemTheme === 'dark' ? '#9ca3af' : '#475569' }
+                    }
+                ],
+                series: [
+                    {
+                        name: currentTrendMetric === 'sales' ? 'Sales Value' : 'Net Profit',
+                        type: 'line',
+                        stack: 'Total',
+                        smooth: true,
+                        lineStyle: { width: 3, color: '#0e8eed' },
+                        showSymbol: false,
+                        areaStyle: {
+                            opacity: 0.15,
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#0e8eed' },
+                                { offset: 1, color: '#f0f7ff' }
+                            ])
+                        },
+                        emphasis: { focus: 'series' },
+                        data: seriesData
+                    }
+                ]
+            };
+
+            chartTemporalInst.setOption(option);
+        }
+
+        function renderDonutChart() {
+            const chartDom = document.getElementById('chart-donut');
+            if (!chartDom) return;
+
+            if (chartDonutInst) chartDonutInst.dispose();
+            chartDonutInst = echarts.init(chartDom, systemTheme);
+
+            const dimField = document.getElementById('filter-dimension').dataset.field;
+            if (!dimField || filteredData.length === 0) {
+                renderNoDataChart(chartDonutInst, "Format data kategori tidak cocok.");
+                return;
+            }
+
+            const map = {};
+            filteredData.forEach(row => {
+                const k = row[dimField] || "Unassigned";
+                map[k] = (map[k] || 0) + 1;
+            });
+
+            const chartData = Object.keys(map).map(k => ({ value: map[k], name: k }));
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'item', formatter: '{a} <br/>{b}: {c} ({d}%)' },
+                legend: {
+                    bottom: '0%',
+                    left: 'center',
+                    textStyle: { color: systemTheme === 'dark' ? '#9ca3af' : '#475569' },
+                    itemWidth: 10,
+                    itemHeight: 10
+                },
+                series: [
+                    {
+                        name: 'Dimensi Distribusi',
+                        type: 'pie',
+                        radius: ['45%', '70%'],
+                        avoidLabelOverlap: false,
+                        itemStyle: { borderRadius: 6, borderColor: systemTheme === 'dark' ? '#111827' : '#ffffff', borderWidth: 2 },
+                        label: { show: false, position: 'center' },
+                        emphasis: { label: { show: true, fontSize: 13, fontWeight: 'bold' } },
+                        labelLine: { show: false },
+                        data: chartData,
+                        color: ['#0e8eed', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6']
+                    }
+                ]
+            };
+
+            chartDonutInst.setOption(option);
+        }
+
+        function renderBarChart() {
+            const chartDom = document.getElementById('chart-bar');
+            if (!chartDom) return;
+
+            if (chartBarInst) chartBarInst.dispose();
+            chartBarInst = echarts.init(chartDom, systemTheme);
+
+            // Try rendering horizontal Sub-Category top performer
+            const subCategoryKey = Object.keys(filteredData[0] || {}).find(k => k.toLowerCase() === 'sub-category' || k.toLowerCase() === 'city' || k.toLowerCase() === 'ship mode') || null;
+            const salesKey = Object.keys(filteredData[0] || {}).find(k => k.toLowerCase() === 'sales' || k.toLowerCase() === 'nilai' || k.toLowerCase() === 'amount') || null;
+
+            if (!subCategoryKey || !salesKey || filteredData.length === 0) {
+                renderNoDataChart(chartBarInst, "Data sub-kategori bernilai numerik tidak ditemukan.");
+                return;
+            }
+
+            const map = {};
+            filteredData.forEach(row => {
+                const k = row[subCategoryKey] || "Lainnya";
+                map[k] = (map[k] || 0) + (parseFloat(row[salesKey]) || 0);
+            });
+
+            const sortedKeys = Object.keys(map).sort((a,b) => map[b] - map[a]).slice(0, 7); // Top 7
+            const seriesData = sortedKeys.map(k => parseFloat(map[k].toFixed(2)));
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                grid: { left: '3%', right: '4%', bottom: '3%', top: '5%', containLabel: true },
+                xAxis: {
+                    type: 'value',
+                    axisLine: { show: false },
+                    splitLine: { lineStyle: { color: systemTheme === 'dark' ? '#1f2937' : '#f1f5f9' } },
+                    axisLabel: { color: systemTheme === 'dark' ? '#9ca3af' : '#475569' }
+                },
+                yAxis: {
+                    type: 'category',
+                    data: sortedKeys.reverse(),
+                    axisLine: { lineStyle: { color: systemTheme === 'dark' ? '#374151' : '#cbd5e1' } },
+                    axisLabel: { color: systemTheme === 'dark' ? '#9ca3af' : '#475569', fontSize: 10 }
+                },
+                series: [
+                    {
+                        name: 'Total Penjualan ($)',
+                        type: 'bar',
+                        data: seriesData.reverse(),
+                        itemStyle: {
+                            borderRadius: [0, 6, 6, 0],
+                            color: new echarts.graphic.LinearGradient(1, 0, 0, 0, [
+                                { offset: 0, color: '#38a9fa' },
+                                { offset: 1, color: '#0e8eed' }
+                            ])
+                        }
+                    }
+                ]
+            };
+
+            chartBarInst.setOption(option);
+        }
+
+        function renderRadarChart() {
+            const chartDom = document.getElementById('chart-radar');
+            if (!chartDom) return;
+
+            if (chartRadarInst) chartRadarInst.dispose();
+            chartRadarInst = echarts.init(chartDom, systemTheme);
+
+            // Group dynamic regional indicators
+            const regField = document.getElementById('filter-region').dataset.field;
+            const salesKey = Object.keys(filteredData[0] || {}).find(k => k.toLowerCase() === 'sales' || k.toLowerCase() === 'nilai' || k.toLowerCase() === 'amount') || null;
+
+            if (!regField || !salesKey || filteredData.length === 0) {
+                renderNoDataChart(chartRadarInst, "Data relasi wilayah regional kosong.");
+                return;
+            }
+
+            const map = {};
+            filteredData.forEach(row => {
+                const k = row[regField] || "National";
+                map[k] = (map[k] || 0) + (parseFloat(row[salesKey]) || 0);
+            });
+
+            const keys = Object.keys(map);
+            const values = keys.map(k => parseFloat(map[k].toFixed(2)));
+            const maxVal = Math.max(...values) || 100;
+
+            const indicator = keys.map(k => ({ name: k, max: maxVal }));
+
+            const option = {
+                backgroundColor: 'transparent',
+                tooltip: {},
+                radar: {
+                    indicator: indicator,
+                    radius: '65%',
+                    axisName: { color: systemTheme === 'dark' ? '#9ca3af' : '#475569', fontSize: 10 },
+                    splitLine: { lineStyle: { color: systemTheme === 'dark' ? '#1f2937' : '#e2e8f0' } },
+                    splitArea: { show: false }
+                },
+                series: [
+                    {
+                        name: 'Distribusi Wilayah',
+                        type: 'radar',
+                        data: [
+                            {
+                                value: values,
+                                name: 'Nilai Transaksi',
+                                areaStyle: { color: 'rgba(14, 142, 237, 0.2)' },
+                                lineStyle: { color: '#0e8eed', width: 2 }
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            chartRadarInst.setOption(option);
+        }
+
+        function renderNoDataChart(instance, errorText) {
+            instance.setOption({
+                title: {
+                    show: true,
+                    text: errorText,
+                    x: 'center',
+                    y: 'center',
+                    textStyle: { color: '#9ca3af', fontSize: 11, fontWeight: 'normal' }
+                }
+            });
+        }
+
+        // VIRTUAL SCROLL RENDERING ENGINE (HIGH SPEED)
+        let tableColumns = [];
+
+        function renderTableHeader() {
+            const headerRow = document.getElementById('table-header-row');
+            if (filteredData.length === 0) {
+                headerRow.innerHTML = "";
+                return;
+            }
+
+            // Extract headers dynamic
+            tableColumns = Object.keys(filteredData[0]);
+            
+            // Generate visual sticky header cells
+            let html = "";
+            tableColumns.forEach(col => {
+                html += `<th class="py-3 px-4 text-xs font-bold font-mono tracking-wide select-none" style="width: 150px;">${col}</th>`;
+            });
+            headerRow.innerHTML = html;
+        }
+
+        function renderVirtualTable() {
+            const container = virtualTableViewport;
+            const sizer = virtualTableSizer;
+            const body = virtualTableBody;
+
+            const totalRows = filteredData.length;
+            if (totalRows === 0) {
+                sizer.style.height = "0px";
+                body.innerHTML = '<tr><td colspan="100%" class="text-center py-8 text-slate-400">Tidak ada data yang cocok dengan kriteria filter Anda.</td></tr>';
+                document.getElementById('visible-table-rows').innerText = "0";
+                return;
+            }
+
+            // Total height of table viewport
+            const sizerHeight = totalRows * rowHeight;
+            sizer.style.height = `${sizerHeight}px`;
+
+            // Scrolling position
+            const scrollTop = container.scrollTop;
+            const viewportHeight = container.clientHeight || 500;
+
+            // Row math indices
+            let startIdx = Math.floor(scrollTop / rowHeight) - 3;
+            let endIdx = Math.ceil((scrollTop + viewportHeight) / rowHeight) + 3;
+
+            // Clean clamps
+            startIdx = Math.max(0, startIdx);
+            endIdx = Math.min(totalRows - 1, endIdx);
+
+            document.getElementById('visible-table-rows').innerText = `${startIdx + 1} - ${endIdx + 1}`;
+
+            // Create visible HTML fragment
+            let fragmentHTML = "";
+            for (let i = startIdx; i <= endIdx; i++) {
+                const row = filteredData[i];
+                if (!row) continue;
+
+                let cellsHTML = "";
+                tableColumns.forEach(col => {
+                    let val = row[col];
+                    // Formatter for Currency numbers in Table
+                    if (col.toLowerCase() === 'sales' || col.toLowerCase() === 'profit' || col.toLowerCase() === 'nilai') {
+                        const num = parseFloat(val) || 0;
+                        if (num < 0) {
+                            cellsHTML += `<td class="py-2.5 px-4 font-semibold text-rose-500 font-mono" style="width:150px;">$${num.toFixed(2)}</td>`;
+                        } else {
+                            cellsHTML += `<td class="py-2.5 px-4 font-semibold text-emerald-500 font-mono" style="width:150px;">$${num.toFixed(2)}</td>`;
+                        }
+                    } else if (col.toLowerCase() === 'order date' || col.toLowerCase() === 'ship date') {
+                        // Clean Excel Dates if needed
+                        if (!isNaN(val) && String(val).length > 4 && String(val).length < 7) {
+                            val = excelDateToJSDate(parseFloat(val));
+                        }
+                        cellsHTML += `<td class="py-2.5 px-4 text-slate-500 font-mono" style="width:150px;">${val}</td>`;
+                    } else {
+                        cellsHTML += `<td class="py-2.5 px-4 text-slate-600 dark:text-slate-300 truncate" style="width:150px;" title="${val}">${val}</td>`;
+                    }
+                });
+
+                fragmentHTML += `<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/40" style="height:${rowHeight}px;">${cellsHTML}</tr>`;
+            }
+
+            // Apply style transforms to place rows in accurate scroll offset location
+            const offsetY = startIdx * rowHeight;
+            document.getElementById('virtual-table-element').style.transform = `translateY(${offsetY}px)`;
+            body.innerHTML = fragmentHTML;
+        }
+
+        function setupVirtualScroll() {
+            renderTableHeader();
+            renderVirtualTable();
+        }
+
+        // Convert Excel Serial Date to JS Date
+        function excelDateToJSDate(serial) {
+            const utc_days  = Math.floor(serial - 25569);
+            const utc_value = utc_days * 86400;                                        
+            const date_info = new Date(utc_value * 1000);
+            return date_info.toISOString().split('T')[0];
+        }
+
+        // COMMAND CENTER DISPLAY SLIDESHOW ENGINE
+        function enterDisplayMode() {
+            const overlay = document.getElementById('display-mode-overlay');
+            overlay.classList.remove('hidden');
+            
+            // Auto slideshow timer (slides transition every 8 seconds)
+            displayActiveSlide = 0;
+            switchDisplaySlide(0);
+
+            if (displaySlideIntervalId) clearInterval(displaySlideIntervalId);
+            displaySlideIntervalId = setInterval(() => {
+                displayActiveSlide = (displayActiveSlide + 1) % 3;
+                switchDisplaySlide(displayActiveSlide);
+            }, 8000);
+
+            // Re-render display graphs
+            setTimeout(() => {
+                renderDisplayTemporalChart();
+                renderDisplayDonutChart();
+            }, 100);
+        }
+
+        function exitDisplayMode() {
+            const overlay = document.getElementById('display-mode-overlay');
+            overlay.classList.add('hidden');
+            if (displaySlideIntervalId) clearInterval(displaySlideIntervalId);
+        }
+
+        function switchDisplaySlide(idx) {
+            const s1 = document.getElementById('display-slide-container-1');
+            const s2 = document.getElementById('display-slide-container-2');
+            const s3 = document.getElementById('display-slide-container-3');
+            const activeTitle = document.getElementById('display-active-slide-title');
+
+            s1.className = "absolute inset-6 flex flex-col transition-all duration-500 opacity-0 pointer-events-none";
+            s2.className = "absolute inset-6 flex flex-col transition-all duration-500 opacity-0 pointer-events-none";
+            s3.className = "absolute inset-6 flex flex-col transition-all duration-500 opacity-0 pointer-events-none";
+
+            if (idx === 0) {
+                s1.className = "absolute inset-6 flex flex-col transition-all duration-500 opacity-100 pointer-events-auto";
+                activeTitle.innerText = "Tren Finansial Temporal";
+                if (dispChartTemporalInst) dispChartTemporalInst.resize();
+            } else if (idx === 1) {
+                s2.className = "absolute inset-6 flex flex-col transition-all duration-500 opacity-100 pointer-events-auto";
+                activeTitle.innerText = "Porsi Pasar & Sektor";
+                if (dispChartDonutInst) dispChartDonutInst.resize();
+            } else {
+                s3.className = "absolute inset-6 flex flex-col transition-all duration-500 opacity-100 pointer-events-auto";
+                activeTitle.innerText = "Laporan Analisis AI";
+            }
+        }
+
+        function renderDisplayTemporalChart() {
+            const chartDom = document.getElementById('display-chart-temporal');
+            if (!chartDom) return;
+
+            if (dispChartTemporalInst) dispChartTemporalInst.dispose();
+            dispChartTemporalInst = echarts.init(chartDom, 'dark');
+
+            // Copy Option from main
+            const dateMap = {};
+            const dateKey = Object.keys(filteredData[0] || {}).find(k => k.toLowerCase() === 'order date' || k.toLowerCase() === 'date' || k.toLowerCase() === 'tanggal') || null;
+            const metricKey = Object.keys(filteredData[0] || {}).find(k => k.toLowerCase() === 'sales') || null;
+
+            if (!dateKey || !metricKey || filteredData.length === 0) return;
+
+            filteredData.forEach(row => {
+                let dStr = String(row[dateKey] || '');
+                if (dStr) {
+                    if (!isNaN(dStr) && dStr.length > 4 && dStr.length < 7) {
+                        dStr = excelDateToJSDate(parseFloat(dStr));
+                    }
+                    const monthKey = dStr.substring(0, 7);
+                    dateMap[monthKey] = (dateMap[monthKey] || 0) + (parseFloat(row[metricKey]) || 0);
+                }
+            });
+
+            const sortedKeys = Object.keys(dateMap).sort();
+            const seriesData = sortedKeys.map(k => parseFloat(dateMap[k].toFixed(2)));
+
+            dispChartTemporalInst.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'axis' },
+                xAxis: [{ type: 'category', boundaryGap: false, data: sortedKeys }],
+                yAxis: [{ type: 'value', splitLine: { lineStyle: { color: '#1f2937' } } }],
+                series: [{
+                    name: 'Sales',
+                    type: 'line',
+                    smooth: true,
+                    lineStyle: { width: 4, color: '#f59e0b' },
+                    areaStyle: { opacity: 0.1 },
+                    data: seriesData
+                }]
+            });
+        }
+
+        function renderDisplayDonutChart() {
+            const chartDom = document.getElementById('display-chart-donut');
+            if (!chartDom) return;
+
+            if (dispChartDonutInst) dispChartDonutInst.dispose();
+            dispChartDonutInst = echarts.init(chartDom, 'dark');
+
+            const dimField = document.getElementById('filter-dimension').dataset.field;
+            if (!dimField || filteredData.length === 0) return;
+
+            const map = {};
+            filteredData.forEach(row => {
+                const k = row[dimField] || "Lainnya";
+                map[k] = (map[k] || 0) + 1;
+            });
+
+            const chartData = Object.keys(map).map(k => ({ value: map[k], name: k }));
+
+            dispChartDonutInst.setOption({
+                backgroundColor: 'transparent',
+                tooltip: { trigger: 'item' },
+                series: [{
+                    type: 'pie',
+                    radius: ['50%', '80%'],
+                    data: chartData,
+                    color: ['#10b981', '#3b82f6', '#f59e0b', '#ec4899']
+                }]
+            });
+        }
+
+        // NOTIFICATION & TOAST DIALOGS
+        function showToast(message, type = "info") {
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-5 right-5 z-50 text-xs font-bold px-4 py-3 rounded-xl shadow-xl transition-all duration-300 transform translate-y-2 flex items-center gap-2 ${
+                type === 'success' ? 'bg-emerald-600 text-white' : 'bg-slate-900 dark:bg-slate-800 text-white border border-slate-700'
+            }`;
+            
+            const icon = type === 'success' ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-solid fa-bell"></i>';
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2');
+                toast.classList.add('translate-y-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 4000);
+        }
+    </script>
+</body>
+</html>
