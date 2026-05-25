@@ -35,7 +35,7 @@
 <p align="center">
   <img src="Images/Display Mode.png" alt="Dashboard Light Mode" width="100%" style="border-radius: 8px; border: 1px solid #cbd5e1;">
   <br>
-  <em>Gambar 2.2: Mode Display untukKebutuhan Presentasi Formal.</em>
+  <em>Gambar 2.3: Mode Display untukKebutuhan Presentasi Formal.</em>
 </p>
 ---
 
